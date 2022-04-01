@@ -1,14 +1,8 @@
-const crypto = require('crypto');
 const express = require('express');
-const session = require('express-session');
-const request = require('request');
-const GitHub = require('github-api');
+const {Octokit} = require("@octokit/core");
 const bodyParser = require('body-parser');
 require('dotenv').config();
 const app = express();
-const API_SECRET = 'tdy@FqUdMhy9LMn';
-
-//app.get("/", (req, res) => res.send("Hello World!"));
 
 // parse application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({extended: false}))
@@ -16,50 +10,58 @@ app.use(bodyParser.urlencoded({extended: false}))
 // parse application/json
 app.use(bodyParser.json())
 
-
-app.post('/', (req, res) => {
+app.post('/', async (req, res) => {
     const payload = req.body;
-    const user = 'GitHubOrg-Soumya';
     const cred = process.env['GH_TOKEN'];
     try {
         if (payload["action"] == 'created') {
             console.log("Repo created");
-            let options = {
-                url: payload["repository"]["url"] + "/branches/master/protection",
-                headers: {
-                    Authorization:`Bearer ${cred}`,
-                    'User-Agent': 'kancharlasoumya'
+            const octokit = new Octokit({auth: cred});
+            const response = await octokit.request('PUT /repos/{owner}/{repo}/branches/master/protection', {
+                owner: payload["repository"]["owner"]["login"],
+                repo: payload["repository"]["name"],
+                required_status_checks: {
+                    strict: true,
+                    contexts: [
+                        'contexts'
+                    ],
+                },
+                enforce_admins: false,
+                required_pull_request_reviews: null,
+                restrictions: null
+            });
+            if (response.status == 200) {
+                console.log('Branch protection created successfully. Status code:' + response.status);
+                try {
+                    if (payload["repository"]["has_issues"]) {
+                        const responseIssue = await octokit.request('POST /repos/{owner}/{repo}/issues', {
+                            owner: payload["repository"]["owner"]["login"],
+                            repo: payload["repository"]["name"],
+                            title: "New Protection Added",
+                            body: "@"
+                                + payload["repository"]["sender"]["login"]
+                                + " A new branch protection was added to the master branch.",
+                        });
+                        if (responseIssue.status === 201) {
+                            console.log('Issue created successfully. Status code:' + responseIssue.status);
+                        } else {
+                            console.log("Unable to create issue. Status code: ",
+                                responseIssue.status + "- Data "+ responseIssue.status);
+                        }
+                    } else {
+                        console.log("This repo has no issues so one cannot be created at this time.");
+                    }
+                } catch (error) {
+                    console.log("Request did not contain information about if the repository has issues enabled - " + error);
                 }
-            };
 
-         /*   const post_options = {
-                Authorization:`Bearer ${cred}`,
-                "required_status_checks": {"strict": 'True', "contexts": ["default"]},
-                "User-Agent": 'TestRepo',
-                "enforce_admins": 'False',
-                "required_pull_request_reviews": 'None',
-                "restrictions": 'None',
-            };*/
-            //const Url = payload["repository"]["url"] + "/branches/master/protection";
-            //Create Branch Protection for the master branch of the repo.
-            function callback(error, response, body) {
-                if (!error && response.statusCode == 200) {
-                    let info = JSON.parse(body);
-                    console.log('Branch protection created successfully. Status code:' + response.statusCode);
-                    console.log(info);
-                }
-                else{
-                    console.log("- Response "+ response.statusCode + "- Data"+ response.body);
-                }
+            } else {
+                console.log("- Response " + response.status + "- Data" + response.data);
             }
-            request(options, callback);
-
         }
     } catch (error) {
-        console.log("Ignore Post Payload since it is not a create action");
+        console.log("Ignore Post Payload since it is not a create action" + error);
     }
-
-
     if (payload["action"] == 'deleted') {
         console.log("Repo deleted");
     }
