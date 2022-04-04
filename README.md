@@ -4,7 +4,7 @@ Repository Branch Protection and Notification is a simple web service that liste
 ## Usage
 - Install the following:
     - [Node.js and npm](https://nodejs.org/en/download/) 
-        - `node install -g npm` for npm
+        - `install npm` for npm
     - @Octokit/core - A minimalistic library to utilize GitHub's REST API
         - `node install @Octokit/core`
     - [ngrok](https://dashboard.ngrok.com/get-started) - One command for an instant, secure URL to your localhost server through any NAT or firewall and helps in Building webhook consumers on your dev machine
